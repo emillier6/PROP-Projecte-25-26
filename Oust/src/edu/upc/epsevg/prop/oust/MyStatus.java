@@ -5,9 +5,15 @@
 package edu.upc.epsevg.prop.oust;
 
 /**
- *
- * @author Usuari
+ * Classe que emmagatzema informació precalculada sobre l'estat del joc.
+ * Utilitzada per GameStatusTunned per optimitzar les heurístiques.
+ * 
+ * @author Alex Aranda & Erik Millier
  */
 public class MyStatus {
-    
+    public int stonesP1 = 0;
+    public int stonesP2 = 0;
+    public int biggestGroupP1 = 0;
+    public int biggestGroupP2 = 0;
+    public boolean lastMoveWasCapture = false;
 }
