@@ -49,12 +49,8 @@ public class IDSPlayerMiniMax implements IPlayer, IAuto {
     // Random per trencar empats
     private final Random random = new Random();
     
-    // --- Heurística (pesos ajustats per ser més agressiu) ---
-    private static final float W_ENEMY = 150.0f;  // reduir enemics (MOLT fort - més agressiu)
-    private static final float W_MY    = 0.5f;    // penalitzar inflar-se (molt suau)
-    private static final float W_CAP   = 500.0f;  // captures immediates del rival (CRÍTIC)
-    private static final float W_CHAIN = 150.0f;  // cadena de captures del rival (menys defensiu)
-    private static final float W_MOB   = 3.0f;    // mobilitat (més important)
+    // Heurística per avaluar posicions
+    private final HeuristicaOust heuristica;
     
     /**
      * Crea un jugador IDS Minimax amb un límit de temps especificat.
@@ -65,6 +61,17 @@ public class IDSPlayerMiniMax implements IPlayer, IAuto {
         this.limitTemps = tempsMaximMillis;
         this.nom = "IDSMiniMax(" + tempsMaximMillis + "ms)";
         this.taulaTransposicions = new HashMap<>(MIDA_TAULA);
+        this.heuristica = new HeuristicaOust(); // Heurística per defecte
+    }
+    
+    /**
+     * Constructor amb heurística personalitzada.
+     */
+    public IDSPlayerMiniMax(long tempsMaximMillis, HeuristicaOust heuristicaCustom) {
+        this.limitTemps = tempsMaximMillis;
+        this.nom = "IDSMiniMax(" + tempsMaximMillis + "ms)";
+        this.taulaTransposicions = new HashMap<>(MIDA_TAULA);
+        this.heuristica = heuristicaCustom;
     }
     
     @Override
@@ -325,32 +332,18 @@ public class IDSPlayerMiniMax implements IPlayer, IAuto {
     }
     
     /**
-     * Funció heurística defensiva optimitzada amb MyStatus.
+     * Funció heurística que delega a HeuristicaOust.
      */
     private float avaluar(GameStatusTunned s) {
-        PlayerType opp = (jugadorActual == PlayerType.PLAYER1) ? PlayerType.PLAYER2 : PlayerType.PLAYER1;
-        MyStatus info = s.getInfo();
-
-        // 1) MATERIAL (precalculat!)
-        int my = (jugadorActual == PlayerType.PLAYER1) ? info.stonesP1 : info.stonesP2;
-        int enemy = (jugadorActual == PlayerType.PLAYER1) ? info.stonesP2 : info.stonesP1;
-
-        // 2) MOBILITAT
-        int myMoves = 0;
-        if (s.getCurrentPlayer() == jugadorActual) {
-            List<Point> mvs = s.getMoves();
-            myMoves = (mvs == null) ? 0 : mvs.size();
-        }
-
-        // 3) AMENAÇA DEL RIVAL
+        // Avaluació bàsica
+        float puntuacio = heuristica.avaluar(s, jugadorActual);
+        
+        // Afegir amenaces del rival
         AmenacesInfo ai = computeOpponentThreat(s);
-
-        // 4) COMBINACIÓ
-        return (-W_ENEMY * enemy)
-                - (W_MY * my)
-                - (W_CAP * ai.enemyCaptureMoves)
-                - (W_CHAIN * ai.enemyMaxGreedyChain)
-                + (W_MOB * (myMoves - ai.enemyMoves));
+        puntuacio = heuristica.afegirAmenaces(puntuacio, 0, ai.enemyCaptureMoves, 
+                                             0, ai.enemyMaxGreedyChain);
+        
+        return puntuacio;
     }
     
     /**
