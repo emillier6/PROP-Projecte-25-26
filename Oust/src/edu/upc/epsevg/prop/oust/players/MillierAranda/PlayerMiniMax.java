@@ -45,10 +45,10 @@ import java.util.Random;
  */
 public class PlayerMiniMax implements IPlayer, IAuto {
     
-    private final int profunditatMaxima;
+    protected int profunditatMaxima;  // CHANGED: final → protected per herència
     private final String name;
     
-    private long nodes;
+    protected long nodes;  // CHANGED: private → protected per herència
     
     private static final boolean DEBUG = false;
     private static final int TOP_K = 8;
