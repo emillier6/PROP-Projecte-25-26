@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
+import java.util.HashSet;
 
 /**
  * PlayerMiniMax implementa un jugador basat en l'algorisme Minimax
@@ -205,11 +207,21 @@ public class PlayerMiniMax implements IPlayer, IAuto {
 
         // Cas base: o bé s'ha arribat a profunditat 0 o el joc s'ha acabat
         if (depth <= 0 || s.isGameOver()) {
-            // Avaluem l'estat amb la heurística
             float h = evaluate(s, me);
-            // Si el joc ha acabat, exagerem el valor per prioritzar finals clars
-            // (guanyar/perdre ha de dominar sobre heurístiques intermèdies)
-            return s.isGameOver() ? h * 1000.0f : h;
+            
+            // --- KILLER INSTINCT MODIFICATION ---
+            if (s.isGameOver()) {
+                // Si la partida ha terminado, ya no hay heurística que valga.
+                // Es VICTORIA ABSOLUTA o DERROTA ABSOLUTA.
+                // Usamos INFINITY para que ningún cálculo de libertades pueda superar esto.
+                
+                // Si h es positivo, gané yo -> +Infinito
+                // Si h es negativo, ganó el rival -> -Infinito
+                return (h > 0) ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY;
+            }
+            // ------------------------------------
+            
+            return h;
         }
 
         // Determinem si aquest node és de maximització (torn de "me") o minimització
@@ -445,54 +457,67 @@ public class PlayerMiniMax implements IPlayer, IAuto {
     private float evaluate(GameStatus s, PlayerType me) {
         PlayerType opp = (me == PlayerType.PLAYER1) ? PlayerType.PLAYER2 : PlayerType.PLAYER1;
         
-        // Usar GameStatusTunned per MyStatus
         GameStatusTunned gst = (s instanceof GameStatusTunned) ? 
                                (GameStatusTunned)s : new GameStatusTunned(s);
         MyStatus info = gst.getInfo();
 
-        // --- BIGGEST GROUP ---
+        // Dades bàsiques
         int myBiggest = (me == PlayerType.PLAYER1) ? info.biggestGroupP1 : info.biggestGroupP2;
         int enemyBiggest = (me == PlayerType.PLAYER1) ? info.biggestGroupP2 : info.biggestGroupP1;
-
-        // --- MATERIAL ---
         int my = (me == PlayerType.PLAYER1) ? info.stonesP1 : info.stonesP2;
         int enemy = (me == PlayerType.PLAYER1) ? info.stonesP2 : info.stonesP1;
 
-        // --- 1. OUST TOTAL (Victòria immediata) - Pes: 100 ---
-        if (enemy == 0) {
-            return 10000.0f;  // Victoria immediata!
-        }
-        if (my == 0) {
-            return -10000.0f;  // Derrota immediata
+        // --- 0. DETECCIÓ DE FASE DE JOC ---
+        // Calculem quants hexàgons té el tauler aproximadament (per saber si estem al final)
+        // La formula exacta d'hexàgons és 3*n*(n-1) + 1, però amb n*n*3 ens val per estimar.
+        int totalCellsEstimate = s.getSize() * s.getSize() * 3 / 4; 
+        int totalStones = my + enemy;
+        
+        // Estem al Endgame si hi ha moltes peces (> 60% ocupació)
+        boolean isEndGame = totalStones > (totalCellsEstimate * 0.60);
+
+        // --- 1. VICTORIA / DERROTA TOTAL ---
+        if (enemy == 0) return 100000.0f;
+        if (my == 0) return -100000.0f;
+
+        // --- 2. DEFINICIÓ DE PESOS DINÀMICS ---
+        float W_BIGGEST, W_SINGLE, W_LIBERTIES, W_VULNERABLE, W_MATERIAL;
+
+        if (isEndGame) {
+            // ESTRATÈGIA ENDGAME (Supervivència i Ofec)
+            W_BIGGEST = 80.0f;      // Menys important fer grups grans
+            W_SINGLE = 10.0f;       // Els singletons ja no són tan útils, fan nosa
+            W_LIBERTIES = 40.0f;    // CRÍTIC: Necessitem espai per no ofegar-nos
+            W_VULNERABLE = -100.0f; // PARANOIA: Si tens un punt feble, et mataran segur
+            W_MATERIAL = 20.0f;     // El material importa per desempatar
+        } else {
+            // ESTRATÈGIA EARLY/MID (Expansió i Estructura)
+            W_BIGGEST = 100.0f;
+            W_SINGLE = 25.0f;       // Molt bo tenir llavors plantades
+            W_LIBERTIES = 5.0f;     // No és prioritari encara
+            W_VULNERABLE = -15.0f;  // Risc acceptable
+            W_MATERIAL = 10.0f;
         }
 
-        // --- 2. EFICIÈNCIA CAPTURA - Pes: 40 ---
-        float captureBonus = info.lastMoveWasCapture ? 40.0f : 0.0f;
-
-        // --- 3. SINGLETONS (flexibilitat) - Pes: 20 ---
+        // --- 3. CÀLCULS AUXILIARS ---
+        float captureBonus = info.lastMoveWasCapture ? 50.0f : 0.0f;
         int mySingletons = comptarSingletons(s, me);
         int enemySingletons = comptarSingletons(s, opp);
-
-        // --- 4. LIBERTATS (mobilitat) - Pes: 5 ---
         int myLiberties = comptarLibertats(s, me);
         int enemyLiberties = comptarLibertats(s, opp);
-
-        // --- 5. GRUPS VULNERABLES - Pes: -15 ---
         int myVulnerable = comptarGrupsVulnerables(s, me, opp);
 
-        // HEURÍSTICA MULTIFACTORIAL
-        float score = 100.0f * (myBiggest - enemyBiggest) 
+        // --- 4. FORMULA FINAL ---
+        float score = W_BIGGEST * (myBiggest - enemyBiggest) 
             + captureBonus                        
-            + 20.0f * (mySingletons - enemySingletons * 0.5f) 
-            + 5.0f * (myLiberties - enemyLiberties)  
-            - 15.0f * myVulnerable               
-            - 50.0f * enemy                      
-            + 10.0f * my;
+            + W_SINGLE * (mySingletons - enemySingletons * 0.5f) 
+            + W_LIBERTIES * (myLiberties - enemyLiberties)  
+            + W_VULNERABLE * myVulnerable               
+            - 50.0f * enemy       // Sempre volem eliminar enemics               
+            + W_MATERIAL * my;
 
+        // Penalització per amenaça immediata (es manté igual de forta)
         if (!info.lastMoveWasCapture) {
-            // PENALITZACIÓ MASSIVA: -2000 per fitxa amenaçada
-            // Això assegura que l'heurística MAI prefereixi guanyar 100 punts de posició
-            // si el cost és perdre una fitxa immediatament.
             score -= 2000.0f * countImmediateThreats(s, me); 
         }
         
@@ -500,31 +525,31 @@ public class PlayerMiniMax implements IPlayer, IAuto {
     }
     
     /**
-     * Compta libertats: caselles buides adjacents a les peces.
-     * Alta mobilitat = més flexibilitat estratègica.
+     * Compta les caselles buides úniques adjacents als meus grups.
+     * Al final de la partida, qui té més espai únic guanya.
      */
     private int comptarLibertats(GameStatus s, PlayerType player) {
-        int libertats = 0;
+        Set<Point> uniqueLiberties = new HashSet<>();
         int size = s.getSize();
         int[][] dirs = {{1,0}, {-1,0}, {0,-1}, {1,-1}, {-1,1}, {0,1}};
         
         for (int y = 0; y < size; y++) {
             for (int x = 0; x < size; x++) {
                 if (s.getColor(x, y) == player) {
-                    // Comptar veïns buits
                     for (int[] d : dirs) {
                         int nx = x + d[0];
                         int ny = y + d[1];
+                        // Verifiquem límits manualment per rapidesa o usem isInBounds
                         if (nx >= 0 && nx < size && ny >= 0 && ny < size) {
                             if (s.getColor(nx, ny) == null) {
-                                libertats++;
+                                uniqueLiberties.add(new Point(nx, ny));
                             }
                         }
                     }
                 }
             }
         }
-        return libertats;
+        return uniqueLiberties.size();
     }
     
     /**
