@@ -53,6 +53,7 @@ public class PlayerMiniMax implements IPlayer, IAuto {
     private final String name;
     
     protected long nodes;  // CHANGED: private → protected per herència
+    protected boolean tempsEsgotat = false;  // Control de temps per IDS
     
     private static final boolean DEBUG = false;
     private static final int TOP_K = 8;
@@ -138,6 +139,7 @@ public class PlayerMiniMax implements IPlayer, IAuto {
     public PlayerMove move(GameStatus status) {
         // Reiniciem el comptador de nodes explorats per aquesta jugada
         nodes = 0;
+        tempsEsgotat = false;  // Reset del flag de temps
         // Jugador que inicia la cerca (el que li toca moure ara)
         PlayerType me = status.getCurrentPlayer();
 
@@ -204,6 +206,11 @@ public class PlayerMiniMax implements IPlayer, IAuto {
     private float minimax(GameStatus s, int depth, float alpha, float beta, PlayerType me) {
         // Comptem aquest node com a explorat (estadístiques)
         nodes++;
+        
+        // Control de temps per IDS: si s'ha esgotat, retornem immediatament
+        if (tempsEsgotat) {
+            return evaluate(s, me);
+        }
 
         // Cas base: o bé s'ha arribat a profunditat 0 o el joc s'ha acabat
         if (depth <= 0 || s.isGameOver()) {
@@ -431,7 +438,7 @@ public class PlayerMiniMax implements IPlayer, IAuto {
      */
     @Override
     public void timeout() {
-        // No fem res de moment
+        tempsEsgotat = true;
     }
     
     // -------------------------------------------------------------------------

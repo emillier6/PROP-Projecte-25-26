@@ -2,7 +2,8 @@ package edu.upc.epsevg.prop.oust;
 
 import edu.upc.epsevg.prop.oust.players.HumanPlayer;
 import edu.upc.epsevg.prop.oust.players.RandomPlayer;
-
+import edu.upc.epsevg.prop.oust.players.MillierAranda.PlayerMiniMax;
+import edu.upc.epsevg.prop.oust.players.MillierAranda.PlayerMiniMaxIDS;
 
 import javax.swing.SwingUtilities;
 
@@ -39,8 +40,17 @@ public class Game {
                 // Enjoy!
                 //---------------------------------------------
                 //IPlayer player1 = new RandomPlayer("");
-                IPlayer player1 = new MOustValuablePlayer();
-                IPlayer player2 = new HumanPlayer("Human2");
+                
+                // Opcions de jugadors personalitzats:
+                // PlayerMiniMax: profunditat fixa (més ràpid però menys adaptable)
+                // IDSPlayerMiniMax: cerca iterativa amb límit de temps (més intel·ligent)
+                
+                IPlayer player1 = new MalaOustiaPlayer();
+                //IPlayer player2 = new IDSPlayerMiniMax(3000);  // Profunditat 3
+                
+
+                // Alternativa amb IDS (cerca iterativa):
+                IPlayer player2 = new PlayerMiniMaxIDS();  // Constructor buit, 5s per defecte
                 
                                 
                 

@@ -29,8 +29,8 @@ public class HeadlessGame {
     public static void main(String[] args) {
 
 
-        IPlayer player1 = new MalaOustiaPlayer();        
-        IPlayer player2 = new MOustValuablePlayer();
+        IPlayer player1 = new edu.upc.epsevg.prop.oust.players.MillierAranda.PlayerMiniMaxIDS();        
+        IPlayer player2 = new MalaOustiaPlayer();
         
         
         HeadlessGame game1 = new HeadlessGame(player1, player2, 7, 3/*s timeout*/, 5/*games*/);
